@@ -1,0 +1,4 @@
+outs:
+- md5: 32fe293f5ad8f64f6e9415df023a556d
+  size: 5418443
+  path: SNII-Templates_count1000_z0.001.hdf5

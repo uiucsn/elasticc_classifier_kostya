@@ -1,0 +1,4 @@
+outs:
+- md5: 896b1683b257dc6d3560d393a97331b5
+  size: 5606872
+  path: SNIb-Templates_count1000_z0.001.hdf5

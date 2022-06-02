@@ -1,4 +1,5 @@
 [core]
     remote = campuscluster
+    autostage = true
 ['remote "campuscluster"']
     url = ssh://kostya@cc-login.campuscluster.illinois.edu:/projects/caps/uiucsn/dvc-root

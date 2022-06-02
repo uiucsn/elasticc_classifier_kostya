@@ -1,0 +1,4 @@
+outs:
+- md5: 238cdf586b0e156e42f33421b324cf69
+  size: 190207960
+  path: SNIIn-MOSFIT_z0.001.hdf5

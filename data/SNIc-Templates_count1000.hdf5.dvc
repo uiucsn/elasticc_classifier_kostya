@@ -1,0 +1,4 @@
+outs:
+- md5: fafaddb6dba193b39180ddbfd5caddda
+  size: 5683228
+  path: SNIc-Templates_count1000.hdf5
