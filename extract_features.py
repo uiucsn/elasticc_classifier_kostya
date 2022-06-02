@@ -142,7 +142,8 @@ class LcExtractor():
 
     flux_extractor = licu.Extractor(
         licu.BazinFit('mcmc-lmsder', mcmc_niter=1 << 13, lmsder_niter=20),
-        licu.VillarFit('mcmc-lmsder', mcmc_niter=1 << 13, lmsder_niter=20),
+        licu.Kurtosis(),
+        licu.Skew(),
     )
     
     def __post_init__(self):
@@ -176,7 +177,7 @@ class LcExtractor():
         return [(lc['time'], lc['flux'], lc['fluxerr']) for lc in lcs]
     
     def __call__(self, light_curves: Sequence[Table],
-                 *, schema: str, chunk_size: int = 1 << 14, n_jobs: int = -1, out=None) -> np.ndarray:
+                 *, schema: str, chunk_size: int = 1 << 10, n_jobs: int = -1, out=None) -> np.ndarray:
         prepare_lc_func = self._prepare_lc_funcs(schema)
         n_light_curves = len(light_curves)
         if out is None:
