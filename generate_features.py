@@ -157,8 +157,8 @@ class LcExtractor():
     def prepare_lc_lcdata(self, lc: Table) -> Table:
         lc = lc[lc['flux'] / lc['fluxerr'] > self.s2n]
         lc['time'] = np.asarray(lc['time'] - MJD0, dtype=np.float32)
-        lc['mag'] = -2.5 * np.log10(lc['flux'])
-        lc['magerr'] = MAGERR_COEFF * lc['flux'] / lc['fluxerr']
+        lc['mag'] = 27.5 - 2.5 * np.log10(lc['flux'])
+        lc['magerr'] = MAGERR_COEFF * lc['fluxerr'] / lc['flux']
         return lc
 
     def _prepare_lc_funcs(self, schema: str):
