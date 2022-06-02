@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 
-import operator
 from argparse import ArgumentParser
 from dataclasses import dataclass
-from functools import reduce
 from pathlib import Path
 from typing import Iterable, List, Sequence, Tuple
 
@@ -11,6 +9,7 @@ import lcdata
 import light_curve as licu
 import numpy as np
 import parsnip
+from astropy.coordinates import SkyCoord
 from astropy.table import Table
 
 
@@ -24,8 +23,8 @@ PARSNIP_FEATURES = [
     's2_error',
     's3',
     's3_error',
-    'luminosity',
-    'luminosity_error',
+    # 'luminosity',
+    # 'luminosity_error',
     'reference_time_error',
 ]
 
@@ -72,6 +71,31 @@ LEN_BANDS = len(BANDS)
 MAGERR_COEFF = 2.5 / np.log(10.0)
 
 MJD0 = 60000.0
+
+
+class MetaExtractor():
+    features = ['abs_gal_b', 'redshift']
+    size = len(features)
+
+    _redshift_threshold = 0.01
+
+    def _prepare(self, coord: SkyCoord, redshift: np.ndarray):
+        abs_gal_b = np.abs(coord.galactic.b.deg)
+        return dict(abs_gal_b=abs_gal_b, redshift=redshift)
+
+    def _extract_lcdata(self, meta: Table):
+        coord = SkyCoord(ra=meta['ra'], dec=meta['dec'], unit='deg')
+        redshift = meta['redshift']
+        return self._prepare(coord=coord, redshift=redshift)
+
+    def __call__(self, meta: Table, *, schema:str):
+        try:
+            feature_dict = getattr(self, f'_extract_{schema}')(meta)
+        except AttributeError as e:
+            raise ValueError(f'schema {schema!r} is not supported') from e
+        table = Table({k: feature_dict[k] for k in self.features})
+        table['redshift'] = np.where(table['redshift'] >= self._redshift_threshold, table['redshift'], np.nan)
+        return table
 
 
 @dataclass
@@ -201,16 +225,25 @@ def main(argv=None):
     dataset = lcdata.read_hdf5(args.input)
 
     lc_extractor = LcExtractor(s2n=args.s2n)
-    all_features = np.empty((len(dataset), lc_extractor.size + len(PARSNIP_FEATURES)), dtype=np.float32)
+    meta_extractor = MetaExtractor()
 
-    lc_features = all_features[:, :lc_extractor.size]
+    lc_idx = slice(0, lc_extractor.size)
+    parsnip_idx = slice(lc_idx.stop, lc_idx.stop + len(PARSNIP_FEATURES))
+    meta_idx = slice(parsnip_idx.stop, parsnip_idx.stop + meta_extractor.size)
+    all_size = meta_idx.stop
+    all_features = np.empty((len(dataset), all_size), dtype=np.float32)
+
+    lc_features = all_features[:, lc_idx]
     lc_extractor(dataset.light_curves, schema='lcdata', out=lc_features)
 
-    model = parsnip.load_model(args.model, device=args.device)
-    predictions = model.predict_dataset(dataset)
-
-    parsnip_features = all_features[:, lc_extractor.size:]
+    parsnip_model = parsnip.load_model(args.model, device=args.device)
+    predictions = parsnip_model.predict_dataset(dataset)
+    parsnip_features = all_features[:, parsnip_idx]
     parsnip_features[:] = np.stack([np.asarray(predictions[f], dtype=np.float32) for f in PARSNIP_FEATURES], axis=-1)
+
+    meta_features = all_features[:, meta_idx]
+    meta_table = meta_extractor(dataset.meta, schema='lcdata')
+    meta_features[:] = np.stack([np.asarray(column, dtype=np.float32) for column in meta_table.itercols()], axis=-1)
 
     object_ids = predictions['object_id']
     snana_model_name = Path(args.input).stem
