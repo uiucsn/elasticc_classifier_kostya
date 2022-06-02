@@ -3,7 +3,7 @@
 #SBATCH --cpus-per-task=20
 #SBATCH --mem-per-cpu=1200
 #SBATCH --time 1:30:00
-#SBATCH --array=0  # 0-31
+#SBATCH --array=0-31
 
 DIR_NAMES=($(ls FULL_ELASTICC_TRAIN | sort))
 
