@@ -17,6 +17,12 @@ for DIR in `ls FULL_ELASTICC_TRAIN | sort`; do
     python3 ./create_dataset.py -t ${MODEL} -i FULL_ELASTICC_TRAIN/${DIR} -o data/${MODEL}.hdf5
     python3 ./create_dataset.py -t ${MODEL} -i FULL_ELASTICC_TRAIN/${DIR} -o data/${MODEL}_z0.001.hdf5 --fixed-z=0.001
 done
+
+for DIR in `ls FULL_ELASTICC_TRAIN | sort`; do
+    MODEL=${DIR#ELASTICC_TRAIN_}
+    python3 ./create_dataset.py -t ${MODEL} -i FULL_ELASTICC_TRAIN/${DIR} -o data/${MODEL}_count1000.hdf5 --count=1000
+    python3 ./create_dataset.py -t ${MODEL} -i FULL_ELASTICC_TRAIN/${DIR} -o data/${MODEL}_count1000_z0.001.hdf5 --count=1000 --fixed-z=0.001
+done
 ```
 
 ### Train Parsnip model for transients only
