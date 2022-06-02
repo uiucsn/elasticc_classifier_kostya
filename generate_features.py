@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import re
 from argparse import ArgumentParser
 from dataclasses import dataclass
 from pathlib import Path
@@ -219,6 +220,13 @@ def parse_args(argv=None):
     return args
 
 
+def filename_to_snana(fname):
+    s = Path(fname).stem
+    s = re.sub(r'_count\d+', '', s)
+    s = re.sub(r'_z[\d.]+', '', s)
+    return s
+
+
 def main(argv=None):
     args = parse_args(argv)
 
@@ -246,7 +254,7 @@ def main(argv=None):
     meta_features[:] = np.stack([np.asarray(column, dtype=np.float32) for column in meta_table.itercols()], axis=-1)
 
     object_ids = predictions['object_id']
-    snana_model_name = Path(args.input).stem
+    snana_model_name = filename_to_snana(args.input)
     types = np.full(len(dataset), SNANA_TO_TAXONOMY[snana_model_name])
 
     output_dir = Path(args.output)
