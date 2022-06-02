@@ -183,7 +183,7 @@ class LcExtractor():
             out = np.empty((n_light_curves, self.size), dtype=np.float32)
         else:
             assert out.shape == (n_light_curves, self.size)
-            assert out.dtype is np.float32
+            assert out.dtype.type is np.float32, f'out dtype is {out.dtype!r}, but np.float32 is required'
         for i in range(0, n_light_curves, chunk_size):
             lc_idx = slice(i, i + chunk_size)
             # Split each light curve to len(BANDS) light curves
