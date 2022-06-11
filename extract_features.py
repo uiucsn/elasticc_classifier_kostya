@@ -3,8 +3,9 @@
 import re
 from argparse import ArgumentParser
 from dataclasses import dataclass
+from itertools import chain
 from pathlib import Path
-from typing import Iterable, List, Sequence, Tuple
+from typing import Dict, Iterable, List, Sequence, Tuple
 
 import lcdata
 import light_curve as licu
@@ -66,28 +67,47 @@ SNANA_TO_TAXONOMY = {
 }
 
 
-BANDS = ['lsst' + band for band in 'ugrizy']
-LEN_BANDS = len(BANDS)
+BANDS_SNANA = 'ugrizY'
+BANDS_PARSNIP = ['lsst' + band for band in BANDS_SNANA.lower()]
+LEN_BANDS = len(BANDS_PARSNIP)
 
 MAGERR_COEFF = 2.5 / np.log(10.0)
 
 MJD0 = 60000.0
 
+SATURATION_FLUX = 1e5
+
 
 class MetaExtractor():
-    features = ['abs_gal_b', 'redshift']
+    features = (
+        ['abs_gal_b', 'redshift', 'mwebv']
+        + list(chain.from_iterable([f'hostgal{i}_zspec', f'hostgal{i}_zspec_err', f'hostgal{i}_ellipticity',
+                                    f'hostgal{i}_sqradius', f'hostgal{i}_zphot', f'hostgal{i}_zphot_err',
+                                    f'hostgal{i}_snsep'] + [f'hostgal{i}_mag_{b}' for b in BANDS_SNANA]
+                                   for i in ['', '2']))
+    )
     size = len(features)
 
+    # All redshifts smaller than this are considered as unknown
     _redshift_threshold = 0.01
 
-    def _prepare(self, coord: SkyCoord, redshift: np.ndarray):
+    def _prepare(self, coord: SkyCoord, **kwargs: Dict[str, np.ndarray]):
         abs_gal_b = np.abs(coord.galactic.b.deg)
-        return dict(abs_gal_b=abs_gal_b, redshift=redshift)
+        return dict(abs_gal_b=abs_gal_b, **kwargs)
 
-    def _extract_lcdata(self, meta: Table):
-        coord = SkyCoord(ra=meta['ra'], dec=meta['dec'], unit='deg')
-        redshift = meta['redshift']
-        return self._prepare(coord=coord, redshift=redshift)
+    def _extract_lcdata(self, meta: Table) -> Dict[str, np.ndarray]:
+        kwargs = {'coord': SkyCoord(ra=meta['ra'], dec=meta['dec'], unit='deg'), 'redshift': meta['redshift'],
+                  'mwebv': meta['MWEBV'], 'hostgal_zspec': meta['HOSTGAL_SPECZ'],
+                  'hostgal2_zspec': meta['HOSTGAL2_SPECZ'], 'hostgal_zspec_err': meta['HOSTGAL_SPECZ_ERR'],
+                  'hostgal2_zspec_err': meta['HOSTGAL2_SPECZ_ERR'], 'hostgal_zphot': meta['HOSTGAL_PHOTOZ'],
+                  'hostgal2_zphot': meta['HOSTGAL2_PHOTOZ'], 'hostgal_zphot_err': meta['HOSTGAL_PHOTOZ_ERR'],
+                  'hostgal2_zphot_err': meta['HOSTGAL2_PHOTOZ_ERR']}
+        for i in ['', '2']:
+            for prop in ['ellipticity', 'sqradius', 'snsep']:
+                kwargs[f'hostgal{i}_{prop}'] = meta[f'HOSTGAL{i}_{prop.upper()}']
+            for b in BANDS_SNANA:
+                kwargs[f'hostgal{i}_mag_{b}'] = meta[f'HOSTGAL{i}_MAG_{b}']
+        return self._prepare(**kwargs)
 
     def __call__(self, meta: Table, *, schema:str):
         try:
@@ -111,6 +131,7 @@ class LcExtractor():
                 licu.BeyondNStd(2.0),
                 licu.EtaE(),
                 licu.Kurtosis(),
+                licu.LinearTrend(),
                 licu.MaximumSlope(),
                 licu.MinimumTimeInterval(),
                 licu.ObservationCount(),
@@ -141,25 +162,36 @@ class LcExtractor():
     )
 
     flux_extractor = licu.Extractor(
-        licu.BazinFit('mcmc-lmsder', mcmc_niter=1 << 13, lmsder_niter=20),
         licu.Kurtosis(),
         licu.Skew(),
     )
+
+    full_flux_extractor = licu.Extractor(
+        licu.BazinFit('mcmc-lmsder', mcmc_niter=1 << 10, lmsder_niter=20),
+        licu.VillarFit('mcmc-lmsder', mcmc_niter=1 << 10, lmsder_niter=20),
+    )
     
     def __post_init__(self):
-        self.mag_names = [f'mag_{name}_{band}' for band in BANDS for name in self.mag_extractor.names]
+        self.mag_names = [f'mag_{name}_{band}' for band in BANDS_PARSNIP for name in self.mag_extractor.names]
         self.mag_size = len(self.mag_names)
-        self.flux_names = [f'flux_{name}_{band}' for band in BANDS for name in self.flux_extractor.names]
+        self.flux_names = [f'flux_{name}_{band}' for band in BANDS_PARSNIP for name in self.flux_extractor.names]
         self.flux_size = len(self.flux_names)
-        self.names = self.mag_names + self.flux_names
+        self.full_flux_names = [f'fullflux_{name}_{band}'
+                                for band in BANDS_PARSNIP
+                                for name in self.full_flux_extractor.names]
+        self.full_flux_size = len(self.full_flux_names)
+        self.names = self.mag_names + self.flux_names + self.full_flux_names
         self.size = len(self.names)
-        assert self.mag_size + self.flux_size == self.size
+        assert self.mag_size + self.flux_size + self.full_flux_size == self.size
 
-    def prepare_lc_lcdata(self, lc: Table) -> Table:
-        lc = lc[lc['flux'] / lc['fluxerr'] > self.s2n]
+    def prepare_lc_lcdata(self, lc: Table, *, non_det: bool) -> Table:
+        lc = lc[lc['flux'] <= SATURATION_FLUX]
+        # we don't support mags for non_det yet
+        if not non_det:
+            lc = lc[lc['flux'] / lc['fluxerr'] > self.s2n]
+            lc['mag'] = 27.5 - 2.5 * np.log10(lc['flux'])
+            lc['magerr'] = MAGERR_COEFF * lc['fluxerr'] / lc['flux']
         lc['time'] = np.asarray(lc['time'] - MJD0, dtype=np.float32)
-        lc['mag'] = 27.5 - 2.5 * np.log10(lc['flux'])
-        lc['magerr'] = MAGERR_COEFF * lc['fluxerr'] / lc['flux']
         return lc
 
     def _prepare_lc_funcs(self, schema: str):
@@ -187,25 +219,37 @@ class LcExtractor():
             assert out.dtype.type is np.float32, f'out dtype is {out.dtype!r}, but np.float32 is required'
         for i in range(0, n_light_curves, chunk_size):
             lc_idx = slice(i, i + chunk_size)
-            # Split each light curve to len(BANDS) light curves
+            # Split each light curve to LEN_BANDS light curves
             lcs = list(lc[lc['band'] == band]
-                       for lc in map(prepare_lc_func, light_curves[lc_idx])
-                       for band in BANDS)
-            # We are reshaping from (n_lc * len(BANDS), {mag,flux}_features.size) to (n_lc, self.{mag,flux}_size)
-            out[lc_idx, :self.mag_size] = self.mag_extractor.many(
+                       for lc in map(lambda lc: prepare_lc_func(lc, non_det=False), light_curves[lc_idx])
+                       for band in BANDS_PARSNIP)
+            full_lcs = list(lc[lc['band'] == band]
+                            for lc in map(lambda lc: prepare_lc_func(lc, non_det=True), light_curves[lc_idx])
+                            for band in BANDS_PARSNIP)
+            mag_slice = slice(0, self.mag_size)
+            flux_slice = slice(mag_slice.stop, mag_slice.stop + self.flux_size)
+            full_flux_slice = slice(flux_slice.stop, flux_slice.stop + self.full_flux_size)
+            out[lc_idx, mag_slice] = self.mag_extractor.many(
                 self.lcs_mag_list_tuples(lcs),
                 fill_value=np.nan,
                 n_jobs=n_jobs,
                 sorted=True,
                 check=False,
             ).reshape(-1, self.mag_size)
-            out[lc_idx, self.mag_size:] = self.flux_extractor.many(
+            out[lc_idx, flux_slice] = self.flux_extractor.many(
                 self.lcs_flux_list_tuples(lcs),
                 fill_value=np.nan,
                 n_jobs=n_jobs,
                 sorted=True,
                 check=False,
             ).reshape(-1, self.flux_size)
+            out[lc_idx, full_flux_slice] = self.full_flux_extractor.many(
+                self.lcs_flux_list_tuples(full_lcs),
+                fill_value=np.nan,
+                n_jobs=n_jobs,
+                sorted=True,
+                check=False,
+            ).reshape(-1, self.full_flux_size)
         return out
     
 
@@ -236,21 +280,21 @@ def main(argv=None):
     lc_extractor = LcExtractor(s2n=args.s2n)
     meta_extractor = MetaExtractor()
 
-    lc_idx = slice(0, lc_extractor.size)
-    parsnip_idx = slice(lc_idx.stop, lc_idx.stop + len(PARSNIP_FEATURES))
-    meta_idx = slice(parsnip_idx.stop, parsnip_idx.stop + meta_extractor.size)
-    all_size = meta_idx.stop
+    lc_slice = slice(0, lc_extractor.size)
+    parsnip_slice = slice(lc_slice.stop, lc_slice.stop + len(PARSNIP_FEATURES))
+    meta_slice = slice(parsnip_slice.stop, parsnip_slice.stop + meta_extractor.size)
+    all_size = meta_slice.stop
     all_features = np.empty((len(dataset), all_size), dtype=np.float32)
 
-    lc_features = all_features[:, lc_idx]
+    lc_features = all_features[:, lc_slice]
     lc_extractor(dataset.light_curves, schema='lcdata', out=lc_features)
 
     parsnip_model = parsnip.load_model(args.model, device=args.device)
     predictions = parsnip_model.predict_dataset(dataset)
-    parsnip_features = all_features[:, parsnip_idx]
+    parsnip_features = all_features[:, parsnip_slice]
     parsnip_features[:] = np.stack([np.asarray(predictions[f], dtype=np.float32) for f in PARSNIP_FEATURES], axis=-1)
 
-    meta_features = all_features[:, meta_idx]
+    meta_features = all_features[:, meta_slice]
     meta_table = meta_extractor(dataset.meta, schema='lcdata')
     meta_features[:] = np.stack([np.asarray(column, dtype=np.float32) for column in meta_table.itercols()], axis=-1)
 
@@ -263,6 +307,9 @@ def main(argv=None):
     np.save(output_dir.joinpath(f'{snana_model_name}_features.npy'), all_features)
     np.save(output_dir.joinpath(f'{snana_model_name}_types.npy'), types)
     np.save(output_dir.joinpath(f'{snana_model_name}_ids.npy'), object_ids)
+    with open(output_dir.joinpath('names.txt'), 'w') as fh:
+        for name in lc_extractor.names + meta_extractor.features + PARSNIP_FEATURES:
+            fh.write(f'{name}\n')
 
 
 if __name__ == '__main__':
