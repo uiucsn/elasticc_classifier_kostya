@@ -1,2 +1,2 @@
 astro-parsnip @ git+https://github.com/hombit/parsnip.git@dev#egg=parsnip-1.2.0
-light-curve~=0.5.6
+light-curve~=0.5.7
