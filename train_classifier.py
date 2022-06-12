@@ -70,6 +70,7 @@ def main():
                                                                                   shuffle=True, random_state=0)
     X_train, X_val, y_train, y_val, w_train, w_val = train_test_split(X_trainval, y_trainval, w_trainval,
                                                                       test_size=0.25, shuffle=False)
+    assert set(y_train) == set(y_test) == set(y_val)
 
     classifier = XGBClassifier(
         use_label_encoder=True,
