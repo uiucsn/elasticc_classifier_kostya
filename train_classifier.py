@@ -67,7 +67,14 @@ def main():
         nthread=-1,
         missing=np.nan,
     )
-    classifier.fit(X_trainval, y_trainval, sample_weight=w_trainval, eval_metric='mlogloss')
+    classifier.fit(
+        X_train,
+        y_train,
+        sample_weight=w_train,
+        eval_set=[(X_val, y_val)],
+        sample_weight_eval_set=[w_val],
+        eval_metric='mlogloss'
+    )
     print('Accuracy', accuracy_score(y_test, classifier.predict(X_test), sample_weight=w_test))
     classifier.save_model('model/xgb.ubj')
 
