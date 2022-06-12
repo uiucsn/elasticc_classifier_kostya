@@ -13,6 +13,7 @@ import numpy as np
 import parsnip
 from astropy.coordinates import SkyCoord
 from astropy.table import Table
+from dustmaps import sfd
 
 from util import SNANA_TO_TAXONOMY
 
@@ -56,17 +57,21 @@ class MetaExtractor():
     )
     size = len(features)
 
+    def __init__(self, cache_dir):
+        sfd.fetch()
+        self.sfd_query = sfd.SFDQuery()
+
     def _prepare(self, coord: SkyCoord, **kwargs: Dict[str, np.ndarray]):
         abs_gal_b = np.abs(coord.galactic.b.deg)
-        return dict(abs_gal_b=abs_gal_b, **kwargs)
+        mwebv = self.sfd_query(coord)
+        return dict(abs_gal_b=abs_gal_b, mwebv=mwebv, **kwargs)
 
     def _extract_lcdata(self, meta: Table) -> Dict[str, np.ndarray]:
         kwargs = {'coord': SkyCoord(ra=meta['ra'], dec=meta['dec'], unit='deg'), 'redshift': meta['redshift'],
-                  'mwebv': meta['MWEBV'], 'hostgal_zspec': meta['HOSTGAL_SPECZ'],
-                  'hostgal2_zspec': meta['HOSTGAL2_SPECZ'], 'hostgal_zspec_err': meta['HOSTGAL_SPECZ_ERR'],
-                  'hostgal2_zspec_err': meta['HOSTGAL2_SPECZ_ERR'], 'hostgal_zphot': meta['HOSTGAL_PHOTOZ'],
-                  'hostgal2_zphot': meta['HOSTGAL2_PHOTOZ'], 'hostgal_zphot_err': meta['HOSTGAL_PHOTOZ_ERR'],
-                  'hostgal2_zphot_err': meta['HOSTGAL2_PHOTOZ_ERR']}
+                  'hostgal_zspec': meta['HOSTGAL_SPECZ'], 'hostgal2_zspec': meta['HOSTGAL2_SPECZ'],
+                  'hostgal_zspec_err': meta['HOSTGAL_SPECZ_ERR'], 'hostgal2_zspec_err': meta['HOSTGAL2_SPECZ_ERR'],
+                  'hostgal_zphot': meta['HOSTGAL_PHOTOZ'], 'hostgal2_zphot': meta['HOSTGAL2_PHOTOZ'],
+                  'hostgal_zphot_err': meta['HOSTGAL_PHOTOZ_ERR'], 'hostgal2_zphot_err': meta['HOSTGAL2_PHOTOZ_ERR']}
         for i in ['', '2']:
             for prop in ['ellipticity', 'sqradius', 'snsep']:
                 kwargs[f'hostgal{i}_{prop}'] = meta[f'HOSTGAL{i}_{prop.upper()}']
