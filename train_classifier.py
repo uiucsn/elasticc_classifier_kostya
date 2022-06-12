@@ -4,7 +4,8 @@ from collections import Counter
 from functools import lru_cache
 from glob import glob
 from pathlib import Path
-from typing import Dict, Tuple, Union
+from pprint import pprint
+from typing import Dict, List, Tuple, Union
 
 import numpy as np
 from sklearn.metrics import accuracy_score
@@ -51,9 +52,19 @@ def get_Xy(path: Union[str, Path]) -> Tuple[np.ndarray, np.ndarray]:
     return X, y
 
 
+def get_feature_names(path: Union[str, Path]) -> List[str]:
+    path = Path(path)
+    with open(path.joinpath('names.txt')) as fh:
+        return fh.read().split()
+
+
 def main():
-    X, y = get_Xy('./features/')
+    path = './features'
+
+    X, y = get_Xy(path)
     weights = get_weights(y)
+    feature_names = get_feature_names(path)
+    assert X.shape[1] == len(feature_names)
 
     X_trainval, X_test, y_trainval, y_test, w_trainval, w_test = train_test_split(X, y, weights, test_size=0.2,
                                                                                   shuffle=True, random_state=0)
@@ -66,6 +77,7 @@ def main():
         seed=0,
         nthread=-1,
         missing=np.nan,
+        # max_depth=max(6, int(np.log2(len(feature_names)) + 1)),  # 6 is default
     )
     classifier.fit(
         X_train,
@@ -73,11 +85,13 @@ def main():
         sample_weight=w_train,
         eval_set=[(X_val, y_val)],
         sample_weight_eval_set=[w_val],
-        eval_metric='mlogloss'
+        eval_metric='mlogloss',
     )
-    print('Accuracy', accuracy_score(y_test, classifier.predict(X_test), sample_weight=w_test))
+    classifier.get_booster().feature_names = feature_names
     classifier.save_model('model/xgb.ubj')
 
+    pprint(sorted(classifier.get_booster().get_fscore().items(), key=lambda x: x[1], reverse=True))
+    print('Accuracy', accuracy_score(y_test, classifier.predict(X_test), sample_weight=w_test))
 
 if __name__ == '__main__':
     main()
