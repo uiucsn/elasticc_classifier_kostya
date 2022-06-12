@@ -14,6 +14,8 @@ import parsnip
 from astropy.coordinates import SkyCoord
 from astropy.table import Table
 
+from util import SNANA_TO_TAXONOMY
+
 
 # From the ParSNIP paper
 PARSNIP_FEATURES = [
@@ -29,43 +31,6 @@ PARSNIP_FEATURES = [
     # 'luminosity_error',
     'reference_time_error',
 ]
-
-
-SNANA_TO_TAXONOMY = {
-    'AGN': 'AGN',
-    'CART': 'CART',
-    'Cepheid': 'Cepheid',
-    'd-Sct': 'Delta Scuti',
-    'dwarf-nova': 'Dwarf Novae',
-    'EB': 'EB',
-    'ILOT': 'ILOT',
-    'KN_B19': 'KN',
-    'KN_K17': 'KN',
-    'Mdwarf-flare': 'M-dwarf Flare',
-    'PISN': 'PISN',
-    'RRL': 'RR Lyrae',
-    'SLSN-I+host': 'SLSN',
-    'SLSN-I_no_host': 'SLSN',
-    'SNIa-91bg': 'Ia',
-    'SNIa-SALT2': 'Ia',
-    'SNIax': 'Iax',
-    'SNIb+HostXT_V19': 'Ib/c',
-    'SNIb-Templates': 'Ib/c',
-    'SNIcBL+HostXT_V19': 'Ib/c',
-    'SNIc+HostXT_V19': 'Ib/c',
-    'SNIc-Templates': 'Ic',
-    'SNIIb+HostXT_V19': 'II',
-    'SNII+HostXT_V19': 'II',
-    'SNIIn+HostXT_V19': 'II',
-    'SNII-NMF': 'II',
-    'SNIIn-MOSFIT': 'II',
-    'SNII-Templates': 'II',
-    'TDE': 'TDE',
-    'uLens-Binary': 'uLens',
-    'uLens-Single-GenLens': 'uLens',
-    'uLens-Single_PyLIMA': 'uLens',
-}
-
 
 BANDS_SNANA = 'ugrizY'
 BANDS_PARSNIP = ['lsst' + band for band in BANDS_SNANA.lower()]
