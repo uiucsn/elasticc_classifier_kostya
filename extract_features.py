@@ -272,7 +272,8 @@ def filename_to_snana(fname):
 
 
 def fix_dataset(dataset: lcdata.Dataset) -> lcdata.Dataset:
-    dataset.meta['redshift'] = np.min(dataset.meta['redshift'], MIN_REDSHIFT)
+    dataset.meta['redshift'] = np.where(dataset.meta['redshift'] >= MIN_REDSHIFT,
+                                        dataset.meta['redshift'], MIN_REDSHIFT)
     return dataset
 
 
