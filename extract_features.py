@@ -5,7 +5,7 @@ from argparse import ArgumentParser
 from dataclasses import dataclass
 from itertools import chain
 from pathlib import Path
-from typing import Dict, Iterable, List, Sequence, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 import lcdata
 import light_curve as licu
@@ -14,6 +14,7 @@ import parsnip
 from astropy.coordinates import SkyCoord
 from astropy.table import Table
 from dustmaps import sfd
+from dustmaps.config import config as dustmaps_config
 
 from util import SNANA_TO_TAXONOMY
 
@@ -57,7 +58,9 @@ class MetaExtractor():
     )
     size = len(features)
 
-    def __init__(self, cache_dir):
+    def __init__(self, cache_dir: Optional[str] = None):
+        if cache_dir is not None:
+            dustmaps_config['data_dir'] = cache_dir
         sfd.fetch()
         self.sfd_query = sfd.SFDQuery()
 
