@@ -77,6 +77,9 @@ MJD0 = 60000.0
 
 SATURATION_FLUX = 1e5
 
+# All smaller redshifts are considered as unknown
+MIN_REDSHIFT = 1e-2
+
 
 class MetaExtractor():
     features = (
@@ -87,9 +90,6 @@ class MetaExtractor():
                                    for i in ['', '2']))
     )
     size = len(features)
-
-    # All redshifts smaller than this are considered as unknown
-    _redshift_threshold = 0.01
 
     def _prepare(self, coord: SkyCoord, **kwargs: Dict[str, np.ndarray]):
         abs_gal_b = np.abs(coord.galactic.b.deg)
@@ -115,7 +115,6 @@ class MetaExtractor():
         except AttributeError as e:
             raise ValueError(f'schema {schema!r} is not supported') from e
         table = Table({k: feature_dict[k] for k in self.features})
-        table['redshift'] = np.where(table['redshift'] >= self._redshift_threshold, table['redshift'], np.nan)
         return table
 
 
@@ -272,10 +271,16 @@ def filename_to_snana(fname):
     return s
 
 
+def fix_dataset(dataset: lcdata.Dataset) -> lcdata.Dataset:
+    dataset.meta['redshift'] = np.min(dataset.meta['redshift'], MIN_REDSHIFT)
+    return dataset
+
+
 def main(argv=None):
     args = parse_args(argv)
 
     dataset = lcdata.read_hdf5(args.input)
+    dataset = fix_dataset(dataset)
 
     lc_extractor = LcExtractor(s2n=args.s2n)
     meta_extractor = MetaExtractor()
