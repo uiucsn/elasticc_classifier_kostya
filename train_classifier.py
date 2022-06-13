@@ -70,6 +70,8 @@ def main():
     X, y = get_Xy(path)
     X = fix_features(X)
     weights = get_weights(y)
+    label_encoder = {label: i for i, label in enumerate(np.unique(y))}
+    labels, y = y, np.vectorize(label_encoder.get)(y)
     feature_names = get_feature_names(path)
     assert X.shape[1] == len(feature_names)
 
@@ -80,7 +82,7 @@ def main():
     assert set(y_train) == set(y_test) == set(y_val)
 
     classifier = XGBClassifier(
-        use_label_encoder=True,
+        use_label_encoder=False,
         booster='gbtree',
         seed=0,
         nthread=-1,
