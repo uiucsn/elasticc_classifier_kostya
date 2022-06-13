@@ -7,8 +7,9 @@ from pathlib import Path
 from pprint import pprint
 from typing import Dict, List, Tuple, Union
 
+import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, ConfusionMatrixDisplay
 from sklearn.model_selection import train_test_split
 from xgboost import XGBClassifier
 
@@ -66,11 +67,13 @@ def get_feature_names(path: Union[str, Path]) -> List[str]:
 
 def main():
     path = './features'
+    figpath = Path('./figures')
 
     X, y = get_Xy(path)
     X = fix_features(X)
     weights = get_weights(y)
     label_encoder = {label: i for i, label in enumerate(np.unique(y))}
+    label_decoder = np.array(list(label_encoder))
     labels, y = y, np.vectorize(label_encoder.get, otypes='i')(y)
     feature_names = get_feature_names(path)
     assert X.shape[1] == len(feature_names)
@@ -102,6 +105,15 @@ def main():
 
     pprint(sorted(classifier.get_booster().get_fscore().items(), key=lambda x: x[1], reverse=True))
     print('Accuracy', accuracy_score(y_test, classifier.predict(X_test), sample_weight=w_test))
+
+    plt.figure(figsize=(20, 20))
+    ConfusionMatrixDisplay.from_predictions(
+        label_decoder[y_test],
+        label_decoder[classifier.predict(X_test)],
+        normalize='true',
+    )
+    plt.savefig(figpath.joinpath('conf_matrix.pdf'))
+    plt.close()
 
 if __name__ == '__main__':
     main()
