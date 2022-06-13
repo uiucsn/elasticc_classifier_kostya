@@ -52,6 +52,12 @@ def get_Xy(path: Union[str, Path]) -> Tuple[np.ndarray, np.ndarray]:
     return X, y
 
 
+def fix_features(X: np.ndarray) -> np.ndarray:
+    X[np.isneginf(X)] = np.finfo(X.dtype.type).min
+    X[np.isposinf(X)] = np.finfo(X.dtype.type).max
+    return X
+
+
 def get_feature_names(path: Union[str, Path]) -> List[str]:
     path = Path(path)
     with open(path.joinpath('names.txt')) as fh:
@@ -62,6 +68,7 @@ def main():
     path = './features'
 
     X, y = get_Xy(path)
+    X = fix_features(X)
     weights = get_weights(y)
     feature_names = get_feature_names(path)
     assert X.shape[1] == len(feature_names)
