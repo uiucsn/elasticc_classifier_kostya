@@ -1,0 +1,4 @@
+outs:
+- md5: 6ce25d2d42e4c4a55c0caccd2a680ad5
+  size: 249832
+  path: SNIIn-MOSFIT_types.npy

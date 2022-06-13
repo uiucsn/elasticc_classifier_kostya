@@ -1,0 +1,4 @@
+outs:
+- md5: e4eb867b010b17812f07f8f3b1abd178
+  size: 675168
+  path: RRL_types.npy

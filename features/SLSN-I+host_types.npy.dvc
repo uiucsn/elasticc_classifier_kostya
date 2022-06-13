@@ -1,0 +1,4 @@
+outs:
+- md5: 24e12b6dc7db135df4b87ba2bda9d74e
+  size: 1615872
+  path: SLSN-I+host_types.npy

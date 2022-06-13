@@ -1,0 +1,4 @@
+outs:
+- md5: 6490d875a91dca3d34b425ca0172f538
+  size: 1754048
+  path: SNIc-Templates_ids.npy

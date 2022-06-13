@@ -1,0 +1,4 @@
+outs:
+- md5: 93370d5323a278bbe51abbc16183385e
+  size: 756632
+  path: Mdwarf-flare_ids.npy

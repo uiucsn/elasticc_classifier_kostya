@@ -1,0 +1,4 @@
+outs:
+- md5: 4596e1ec3a3732f7c78ae79e12daac9a
+  size: 23894968
+  path: d-Sct_features.npy

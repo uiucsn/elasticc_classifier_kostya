@@ -1,0 +1,4 @@
+outs:
+- md5: faf3d2a8d45c1be0fd5f7a7900c814f0
+  size: 3455720
+  path: SNIb-Templates_ids.npy

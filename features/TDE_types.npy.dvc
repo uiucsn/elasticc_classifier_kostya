@@ -1,0 +1,4 @@
+outs:
+- md5: 8ff59a0ae26f49c1db3efc8b80a43dde
+  size: 1237904
+  path: TDE_types.npy
