@@ -105,7 +105,8 @@ def main():
     classifier.save_model('model/xgb.ubj')
 
     pprint(sorted(classifier.get_booster().get_fscore().items(), key=lambda x: x[1], reverse=True))
-    print('Accuracy', accuracy_score(y_test, classifier.predict(X_test), sample_weight=w_test))
+    accuracy = accuracy_score(y_test, classifier.predict(X_test), sample_weight=w_test)
+    print('Accuracy', accuracy)
 
     plt.figure(figsize=(20, 20))
     ConfusionMatrixDisplay.from_predictions(
@@ -114,6 +115,7 @@ def main():
         normalize='true',
         ax=plt.gca(),
     )
+    plt.title(f'Accuracy {accuracy:.3f}')
     plt.savefig(figpath.joinpath('conf_matrix.pdf'))
     plt.close()
 
