@@ -112,6 +112,7 @@ def main():
         label_decoder[y_test],
         label_decoder[classifier.predict(X_test)],
         normalize='true',
+        ax=plt.gca(),
     )
     plt.savefig(figpath.joinpath('conf_matrix.pdf'))
     plt.close()
