@@ -23,7 +23,7 @@ def type_weights() -> Dict[str, float]:
 
 def get_weights(types: np.ndarray) -> np.ndarray:
     d = type_weights()
-    return np.vectorize(d.get)(types)
+    return np.vectorize(d.get, otypes='g')(types)
 
 
 def get_Xy(path: Union[str, Path]) -> Tuple[np.ndarray, np.ndarray]:
@@ -71,7 +71,7 @@ def main():
     X = fix_features(X)
     weights = get_weights(y)
     label_encoder = {label: i for i, label in enumerate(np.unique(y))}
-    labels, y = y, np.vectorize(label_encoder.get)(y)
+    labels, y = y, np.vectorize(label_encoder.get, otypes='i')(y)
     feature_names = get_feature_names(path)
     assert X.shape[1] == len(feature_names)
 
