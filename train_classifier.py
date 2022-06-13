@@ -68,6 +68,7 @@ def get_feature_names(path: Union[str, Path]) -> List[str]:
 def main():
     path = './features'
     figpath = Path('./figures')
+    figpath.mkdir(exist_ok=True)
 
     X, y = get_Xy(path)
     X = fix_features(X)
