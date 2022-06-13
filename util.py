@@ -20,7 +20,7 @@ SNANA_TO_TAXONOMY = {
     'SNIb-Templates': 'Ib/c',
     'SNIcBL+HostXT_V19': 'Ib/c',
     'SNIc+HostXT_V19': 'Ib/c',
-    'SNIc-Templates': 'Ic',
+    'SNIc-Templates': 'Ib/c',
     'SNIIb+HostXT_V19': 'II',
     'SNII+HostXT_V19': 'II',
     'SNIIn+HostXT_V19': 'II',
