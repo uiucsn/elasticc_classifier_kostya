@@ -1,4 +1,4 @@
 astro-parsnip @ git+https://github.com/hombit/parsnip.git@dev#egg=parsnip-1.2.0
 dustmaps
-light-curve~=0.5.7
-xgboost~=1.5
+light-curve~=0.6.0
+xgboost>=1.5,<1.6

@@ -12,6 +12,7 @@ import numpy as np
 from sklearn.metrics import accuracy_score, ConfusionMatrixDisplay
 from sklearn.model_selection import train_test_split
 from xgboost import XGBClassifier
+from xgboost.callback import EarlyStopping
 
 from util import SNANA_TO_TAXONOMY
 
@@ -85,7 +86,17 @@ def main():
                                                                       test_size=0.25, shuffle=False)
     assert set(y_train) == set(y_test) == set(y_val)
 
+    early_stopping = EarlyStopping(
+        rounds=10,
+        min_delta=1e-5,
+        save_best=True,
+        maximize=False,
+        data_name="validation_0",
+        metric_name="mlogloss",
+    )
     classifier = XGBClassifier(
+        n_estimators=2000,
+        learning_rate=0.1,
         use_label_encoder=False,
         booster='gbtree',
         seed=0,
@@ -99,7 +110,8 @@ def main():
         sample_weight=w_train,
         eval_set=[(X_val, y_val)],
         sample_weight_eval_set=[w_val],
-        eval_metric='mlogloss',
+        callbacks=[early_stopping],
+        verbose=True,
     )
     classifier.get_booster().feature_names = feature_names
     classifier.save_model('model/xgb.ubj')

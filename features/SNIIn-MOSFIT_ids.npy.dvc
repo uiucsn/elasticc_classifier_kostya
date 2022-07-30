@@ -1,4 +1,4 @@
 outs:
-- md5: ef7069ffae16031e9573355239fcbcfa
-  size: 2622020
+- md5: 5d7bc6b3646117109af221ff0280ca1b
+  size: 2617736
   path: SNIIn-MOSFIT_ids.npy

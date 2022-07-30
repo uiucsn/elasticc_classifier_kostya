@@ -1,4 +1,4 @@
 outs:
-- md5: 202dc7fd7c6c2cbfb46c62f6229ee15c
-  size: 36207208
+- md5: b9741ba68e7d11ad025dc2ae854ca101
+  size: 36148048
   path: SNIIn-MOSFIT_features.npy

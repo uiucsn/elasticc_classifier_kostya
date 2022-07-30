@@ -18,4 +18,4 @@ set -x
 module load opence/1.5.1
 cd ~/elasticc/ && conda activate elasticc
 
-python3 ./extract_features.py -i ${DATA} -m model/parsnip-elasticc-extragal-transients.pt -o features --device=cuda --s2n=5.0
+python3 ./extract_features.py -i ${DATA} -m model/parsnip-elasticc-extragal-SNe.pt -o features --device=cuda --s2n=5.0

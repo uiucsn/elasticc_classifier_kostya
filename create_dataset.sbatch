@@ -14,5 +14,7 @@ export DIR="FULL_ELASTICC_TRAIN/ELASTICC_TRAIN_${MODEL}"
 module load opence/1.5.1
 cd ~/elasticc/ && conda activate elasticc
 
-python3 ./create_dataset.py -t ${MODEL} -i ${DIR} -o data/${MODEL}_count1000.hdf5 --count=1000
-python3 ./create_dataset.py -t ${MODEL} -i ${DIR} -o data/${MODEL}_count1000_z0.001.hdf5 --count=1000 --fixed-z=0.001
+python3 ./create_dataset.py -t ${MODEL} -i ${DIR} -o data/${MODEL}.hdf5
+python3 ./create_dataset.py -t ${MODEL} -i ${DIR} -o data/${MODEL}_z0.001.hdf5 --fixed-z=0.001
+# python3 ./create_dataset.py -t ${MODEL} -i ${DIR} -o data/${MODEL}_count1000.hdf5 --count=1000
+# python3 ./create_dataset.py -t ${MODEL} -i ${DIR} -o data/${MODEL}_count1000_z0.001.hdf5 --count=1000 --fixed-z=0.001
