@@ -287,7 +287,7 @@ def main(argv=None):
     np.save(output_dir.joinpath(f'{snana_model_name}_types.npy'), types)
     np.save(output_dir.joinpath(f'{snana_model_name}_ids.npy'), object_ids)
     with open(output_dir.joinpath('names.txt'), 'w') as fh:
-        for name in lc_extractor.names + meta_extractor.features + PARSNIP_FEATURES:
+        for name in lc_extractor.names + PARSNIP_FEATURES + meta_extractor.features:
             fh.write(f'{name}\n')
 
 
