@@ -3,11 +3,13 @@
 import dataclasses
 import glob
 import os
+from abc import ABC, abstractmethod
 from argparse import ArgumentParser, ArgumentError
 from collections import defaultdict
 from functools import partial
 from itertools import chain, starmap
 from multiprocessing import Pool
+from typing import Generator
 
 import lcdata
 import numpy as np
@@ -15,6 +17,20 @@ import sncosmo
 from astropy.io import ascii
 from astropy.table import Table
 
+
+def get_detection_mask(lc: Table) -> np.ndarray:
+    """Get mask for detections which are not saturated"""
+    mask_detection = np.bitwise_and(lc['PHOTFLAG'], 4096) != 0
+    mask_not_saturated = np.bitwise_and(lc['PHOTFLAG'], 1024) == 0
+    return mask_detection & mask_not_saturated
+
+    
+    
+def get_detections(lc: Table) -> Table:
+    """Get detections which are not saturated"""
+    return lc[get_detection_mask(lc)]
+    
+    
 
 def parse_fits_snana(head, phot, *, z_keyword, min_passbands):
     i = head.find('_HEAD.FITS.gz')
@@ -25,7 +41,7 @@ def parse_fits_snana(head, phot, *, z_keyword, min_passbands):
         lc.meta['redshift'] = lc.meta[z_keyword]
         if min_passbands > 1:
             # we use this variable for cuts only, while putting the full light curve into dataset
-            detections = lc[lc['PHOTFLAG'] != 0]
+            detections = get_detections(lc)
             assert len(detections) != 0, f'No detection in the light curve: {head = } {phot = } {lc.meta = }'
             if len(set(detections['BAND'])) < min_passbands:
                 continue
@@ -35,18 +51,73 @@ def parse_fits_snana(head, phot, *, z_keyword, min_passbands):
     return lcs
 
 
-def create_dataset_from_snana_fits(dir_path, *, z_keyword, min_passbands, parallel):
+class BasicLightCurveSplitter(ABC):
+    @abstractmethod
+    def __call__(self, lc: Table) -> Generator[Table, None, None]:
+        raise NotImplementedError
+
+        
+class NoSplitSplitter(BasicLightCurveSplitter):
+    def __call__(self, lc: Table) -> Generator[Table, None, None]:
+        yield lc
+        
+
+class LastDetectionSplitter(BasicLightCurveSplitter):
+    def __call__(self, lc: Table) -> Generator[Table, None, None]:
+        last_detection = np.where(get_detection_mask(lc))[0][-1]
+        yield lc[:last_detection]
+
+        
+class RandomDetectionSplitter(BasicLightCurveSplitter):
+    def __init__(self, prob: float, rng=None):
+        self.prob = prob
+        self.rng = np.random.default_rng(rng)
+
+    def __call__(self, lc: Table) -> Generator[Table, None, None]:
+        det_idx = np.where(get_detection_mask(lc))[0]
+        n_det = det_idx.size
+        accepted_mask = self.rng.random(n_det) < self.prob
+        for i_det in det_idx[accepted_mask]:
+            yield lc[:i_det + 1]
+            
+
+class RandomAndLastDetectionsSplitter(BasicLightCurveSplitter):
+    def __init__(self, prob: float, rng=None):
+        self.last_detection_splitter = LastDetectionSplitter()
+        self.random_detection_splitter = RandomDetectionSplitter(prob=prob, rng=rng)
+
+    def __call__(self, lc: Table) -> Generator[Table, None, None]:
+        last_detection_lc = next(self.last_detection_splitter(lc))
+        yield last_detection_lc
+        longest_nobs = len(last_detection_lc)
+        for random_detection_lc in self.random_detection_splitter(lc):
+            # We don't want to repeat last_detection_lc
+            if len(random_detection_lc) == longest_nobs:
+                continue
+            yield random_detection_lc
+
+
+def parse_and_split(*parser_args, parser, splitter):
+    def gen():
+        for lc in parser(*parser_args):
+            yield from splitter(lc)
+    
+    return list(gen())
+            
+
+def create_dataset_from_snana_fits(dir_path, *, z_keyword, min_passbands, parallel, splitter):
     heads = sorted(glob.glob(os.path.join(dir_path, '*_HEAD.FITS.gz')))
     phots = sorted(glob.glob(os.path.join(dir_path, '*_PHOT.FITS.gz')))
     assert len(heads) != 0, 'no *_HEAD_FITS.gz are found'
     assert len(heads) == len(phots), 'there are different number of HEAD and PHOT files'
 
-    parse = partial(parse_fits_snana, z_keyword=z_keyword, min_passbands=min_passbands)
+    parser = partial(parse_fits_snana, z_keyword=z_keyword, min_passbands=min_passbands)
+    worker = partial(parse_and_split, parser=parser, splitter=splitter)
     if parallel:
         with Pool() as pool:
-            lcs = pool.starmap(parse, zip(heads, phots), chunksize=1)
+            lcs = pool.starmap(worker, zip(heads, phots), chunksize=1)
     else:
-        lcs = starmap(parse, zip(heads, phots))
+        lcs = starmap(worker, zip(heads, phots))
     # lcs is a list of lists
     lcs = list(chain.from_iterable(lcs))
 
@@ -54,12 +125,13 @@ def create_dataset_from_snana_fits(dir_path, *, z_keyword, min_passbands, parall
     return dataset
 
 
-def create_dataset(dir_path, *, count, z_keyword, z_std, fixed_z, min_passbands, obj_type, parallel):
+def create_dataset(dir_path, *, count, z_keyword, z_std, fixed_z, min_passbands, obj_type, parallel, splitter):
     dataset = create_dataset_from_snana_fits(
         dir_path,
         z_keyword=z_keyword,
         min_passbands=min_passbands,
         parallel=parallel,
+        splitter=splitter,
     )
     if 'type' not in dataset.meta.columns:
         if obj_type is None:
@@ -94,6 +166,8 @@ def parse_args(argv=None):
     parser.add_argument('-n', '--count', default=None, type=int, help="select given numbe of objects randomly without replacement, default is using all valid data (note that this parameter doesn't reduce evaluation time)")
     parser.add_argument('-t', '--type', default=None, help='replace object type with a given value')
     parser.add_argument('-o', '--output', required=True, help='output HDF5 filename')
+    parser.add_argument('--split-prob', default=None, type=float, help='get light curve data up to given detection with some probability, if not specified the full dataset is used')
+    parser.add_argument('--include-last-detection', action='store_true', help='include last detection light curve for when --split-prob specified')
     parser.add_argument('--z-keyword', default='REDSHIFT_HELIO', help='redshift keyword')
     parser.add_argument('--fixed-z', default=None, type=float, help='use the given redshift value')
     parser.add_argument('--z-std', default=None, type=float,
@@ -120,13 +194,25 @@ def get_redshifts(file, column):
     return redshifts
 
 
+def splitter_from_args(args) -> BasicLightCurveSplitter:
+    if args.split_prob is None:
+        return NoSplitSplitter()
+    if args.include_last_detection:
+        type_ = RandomAndLastDetectionsSplitter
+    else:
+        type_ = RandomDetectionSplitter
+    return type_(prob=args.split_prob, rng=0)
+
+
+
 def main(argv=None):
     args = parse_args(argv)
     
     dataset = create_dataset(args.input, count=args.count,
                              z_keyword=args.z_keyword, z_std=args.z_std,
                              fixed_z=args.fixed_z, min_passbands=args.min_passbands,
-                             obj_type=args.type, parallel=args.parallel)
+                             obj_type=args.type, parallel=args.parallel,
+                             splitter=splitter_from_args(args))
     os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
     dataset.write_hdf5(args.output)
     print(f'Dataset ({len(dataset)} objects) has been written into {args.output}')

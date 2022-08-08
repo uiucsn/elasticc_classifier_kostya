@@ -1,0 +1,4 @@
+outs:
+- md5: 62d390c5aa11fb2ca42d23b1c9196d4d
+  size: 2088864
+  path: SNIa-SALT2_types.npy

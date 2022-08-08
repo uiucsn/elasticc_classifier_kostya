@@ -1,0 +1,4 @@
+outs:
+- md5: 73dfbf42ff466cf4fd8abb1068f27b80
+  size: 5616
+  path: KN_B19_types.npy

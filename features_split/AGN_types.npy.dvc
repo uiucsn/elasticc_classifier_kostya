@@ -1,0 +1,4 @@
+outs:
+- md5: 67a54a9ffe698bbc093fca39aaebafc4
+  size: 8621144
+  path: AGN_types.npy

@@ -1,0 +1,4 @@
+outs:
+- md5: 046cc14958e03fb0ce2d1358df9b2565
+  size: 17626296
+  path: Cepheid_types.npy

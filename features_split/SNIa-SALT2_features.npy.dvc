@@ -1,0 +1,4 @@
+outs:
+- md5: dc2d21738f61a5accc7dfd85fd28a301
+  size: 302866848
+  path: SNIa-SALT2_features.npy

@@ -1,0 +1,4 @@
+outs:
+- md5: 6d4b88a09b17b21dc580e8de978a5ea3
+  size: 33876
+  path: Mdwarf-flare_types.npy

@@ -1,0 +1,4 @@
+outs:
+- md5: 30881708acf291e1e489f26bc8c0cda4
+  size: 18160
+  path: KN_K17_types.npy

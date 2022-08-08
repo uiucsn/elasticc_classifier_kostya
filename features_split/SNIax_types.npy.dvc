@@ -1,0 +1,4 @@
+outs:
+- md5: 9150589ea8b4d401b915680d45ba3795
+  size: 719372
+  path: SNIax_types.npy

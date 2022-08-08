@@ -1,0 +1,4 @@
+outs:
+- md5: 7fbd0321ca02070113dd5d02363546e7
+  size: 632892
+  path: dwarf-nova_types.npy

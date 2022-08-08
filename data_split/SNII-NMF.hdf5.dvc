@@ -1,0 +1,4 @@
+outs:
+- md5: 9471cc63860a0ef8e9434b19b4fa4956
+  size: 93450616
+  path: SNII-NMF.hdf5

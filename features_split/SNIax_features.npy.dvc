@@ -1,0 +1,4 @@
+outs:
+- md5: 20a18770e7d64df3c435b3565840c5e6
+  size: 69527048
+  path: SNIax_features.npy

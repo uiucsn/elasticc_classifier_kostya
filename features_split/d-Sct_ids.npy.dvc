@@ -1,0 +1,4 @@
+outs:
+- md5: 5ec4c0178aded20e131f12183ccf420e
+  size: 79725368
+  path: d-Sct_ids.npy

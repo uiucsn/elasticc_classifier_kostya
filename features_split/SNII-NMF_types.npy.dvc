@@ -1,0 +1,4 @@
+outs:
+- md5: 9b88afe00efe341e190dc83746e8434c
+  size: 669936
+  path: SNII-NMF_types.npy
