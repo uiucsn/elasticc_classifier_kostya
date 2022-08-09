@@ -25,12 +25,10 @@ def get_detection_mask(lc: Table) -> np.ndarray:
     return mask_detection & mask_not_saturated
 
     
-    
 def get_detections(lc: Table) -> Table:
     """Get detections which are not saturated"""
     return lc[get_detection_mask(lc)]
-    
-    
+
 
 def parse_fits_snana(head, phot, *, z_keyword, min_passbands):
     i = head.find('_HEAD.FITS.gz')
@@ -49,6 +47,36 @@ def parse_fits_snana(head, phot, *, z_keyword, min_passbands):
         lcs.append(lc)
     
     return lcs
+
+
+class PreProcessing(ABC):
+    @abstractmethod
+    def __call__(self, lc: Table) -> Table:
+        raise NotImplementedError()
+
+
+class NoPreProcessing(PreProcessing):
+    def __call__(self, lc: Table) -> Table:
+        return lc
+
+
+class DropPreTrigger(PreProcessing):
+    def __new__(cls, days_before):
+        if not np.isfinite(days_before):
+            return NoPreProcessing()
+        return super().__new__(cls)
+
+    def __init__(self, days_before):
+        self.days_before = days_before
+
+    def __call__(self, lc: Table) -> Table:
+        trigger = np.where(np.bitwise_and(lc['PHOTFLAG'], 2048) == 0)[0]
+        assert trigger.size == 1, 'there should be the only trigger per light curve'
+        trigger = trigger.item()
+        earliest_mjd = lc['MJD'][trigger] - self.days_before
+        if earliest_mjd <= lc['MJD'].min():
+            return lc
+        return lc[lc['MJD'] >= earliest_mjd]
 
 
 class BasicLightCurveSplitter(ABC):
@@ -97,22 +125,24 @@ class RandomAndLastDetectionsSplitter(BasicLightCurveSplitter):
             yield random_detection_lc
 
 
-def parse_and_split(*parser_args, parser, splitter):
+def parse_and_split(*parser_args, parser, splitter, preprocsessing):
     def gen():
         for lc in parser(*parser_args):
+            for pre_fn in preprocsessing:
+                lc = pre_fn(lc)
             yield from splitter(lc)
     
     return list(gen())
             
 
-def create_dataset_from_snana_fits(dir_path, *, z_keyword, min_passbands, parallel, splitter):
+def create_dataset_from_snana_fits(dir_path, *, z_keyword, min_passbands, parallel, splitter, preprocsessing):
     heads = sorted(glob.glob(os.path.join(dir_path, '*_HEAD.FITS.gz')))
     phots = sorted(glob.glob(os.path.join(dir_path, '*_PHOT.FITS.gz')))
     assert len(heads) != 0, 'no *_HEAD_FITS.gz are found'
     assert len(heads) == len(phots), 'there are different number of HEAD and PHOT files'
 
     parser = partial(parse_fits_snana, z_keyword=z_keyword, min_passbands=min_passbands)
-    worker = partial(parse_and_split, parser=parser, splitter=splitter)
+    worker = partial(parse_and_split, parser=parser, splitter=splitter, preprocsessing=preprocsessing)
     if parallel:
         with Pool() as pool:
             lcs = pool.starmap(worker, zip(heads, phots), chunksize=1)
@@ -125,13 +155,15 @@ def create_dataset_from_snana_fits(dir_path, *, z_keyword, min_passbands, parall
     return dataset
 
 
-def create_dataset(dir_path, *, count, z_keyword, z_std, fixed_z, min_passbands, obj_type, parallel, splitter):
+def create_dataset(dir_path, *,
+                   count, z_keyword, z_std, fixed_z, min_passbands, obj_type, parallel, splitter, preprocsessing):
     dataset = create_dataset_from_snana_fits(
         dir_path,
         z_keyword=z_keyword,
         min_passbands=min_passbands,
         parallel=parallel,
         splitter=splitter,
+        preprocsessing=preprocsessing,
     )
     if 'type' not in dataset.meta.columns:
         if obj_type is None:
@@ -168,6 +200,7 @@ def parse_args(argv=None):
     parser.add_argument('-o', '--output', required=True, help='output HDF5 filename')
     parser.add_argument('--split-prob', default=None, type=float, help='get light curve data up to given detection with some probability, if not specified the full dataset is used')
     parser.add_argument('--include-last-detection', action='store_true', help='include last detection light curve for when --split-prob specified')
+    parser.add_argument('--days-before-trigger', defaul=np.inf, type=float, help='range of dates to include non-detections before the first detection, use 30 for Elasticc')
     parser.add_argument('--z-keyword', default='REDSHIFT_HELIO', help='redshift keyword')
     parser.add_argument('--fixed-z', default=None, type=float, help='use the given redshift value')
     parser.add_argument('--z-std', default=None, type=float,
@@ -212,7 +245,8 @@ def main(argv=None):
                              z_keyword=args.z_keyword, z_std=args.z_std,
                              fixed_z=args.fixed_z, min_passbands=args.min_passbands,
                              obj_type=args.type, parallel=args.parallel,
-                             splitter=splitter_from_args(args))
+                             splitter=splitter_from_args(args),
+                             preprocsessing=[DropPreTrigger(args.days_before_trigger)])
     os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
     dataset.write_hdf5(args.output)
     print(f'Dataset ({len(dataset)} objects) has been written into {args.output}')
