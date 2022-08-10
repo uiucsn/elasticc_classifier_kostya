@@ -70,12 +70,8 @@ class DropPreTrigger(PreProcessing):
         self.days_before = days_before
 
     def __call__(self, lc: Table) -> Table:
-        trigger = np.where(np.bitwise_and(lc['PHOTFLAG'], 2048) == 0)[0]
-        try:
-            trigger = trigger.item()
-        except ValueError as e:
-            raise ValueError('there should be the only trigger per light curve') from e
-        earliest_mjd = lc['MJD'][trigger] - self.days_before
+        detections = get_detections(lc)
+        earliest_mjd = detections['MJD'][0] - self.days_before
         if earliest_mjd <= lc['MJD'].min():
             return lc
         return lc[lc['MJD'] >= earliest_mjd]
