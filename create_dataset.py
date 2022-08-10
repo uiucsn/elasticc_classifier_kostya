@@ -61,11 +61,6 @@ class NoPreProcessing(PreProcessing):
 
 
 class DropPreTrigger(PreProcessing):
-    def __new__(cls, days_before):
-        if not np.isfinite(days_before):
-            return NoPreProcessing()
-        return super().__new__(cls)
-
     def __init__(self, days_before):
         self.days_before = days_before
 
