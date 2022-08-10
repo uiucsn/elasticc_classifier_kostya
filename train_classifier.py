@@ -62,6 +62,10 @@ def get_XyId(path: Union[str, Path]) -> Tuple[np.ndarray, np.ndarray, np.ndarray
     X = np.concatenate(features)
     y = np.concatenate(types)
     ids = np.concatenate(ids)
+
+    # ids are unique within a class
+    ids = np.array([f'{id_}_{t_}' for t_, id_ in zip(y, ids)])
+
     return X, y, ids
 
 
