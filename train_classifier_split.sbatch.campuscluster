@@ -1,0 +1,32 @@
+#!/bin/bash
+###############################################################################
+##                                                                           ##
+##                           Campus Cluster                                  ##
+##                   Sample SERIAL Job Batch Script                          ##
+##                                                                           ##
+## SLURM Options (To view, run the following command below)                  ##
+##                                                                           ##
+##     man sbatch                                                            ##
+##                                                                           ##
+###############################################################################
+#                                                                            
+#SBATCH --time=99:00:00                  # Job run time (hh:mm:ss)
+#SBATCH --nodes=1                        # Number of nodes
+#SBATCH --ntasks-per-node=1              # Number of task (cores/ppn) per node
+#SBATCH --cpus-per-task=80               # Number of cpu cires per task
+#SBATCH --job-name=train_classifier      # Name of batch job
+#SBATCH --partition=caps                 # Partition (queue)           
+#SBATCH --mail-user=kostya@illinois.edu  # Send email notifications
+#SBATCH --mail-type=BEGIN,END            # Type of email notifications to send
+#                                                                            
+###############################################################################
+# Change to the directory from which the batch job was submitted
+# Note: SLURM defaults to running jobs in the directory where
+# they are submitted, no need for cd'ing to $SLURM_SUBMIT_DIR
+
+source ~/.bashrc
+module load anaconda/2021-May/3
+conda activate ./conda_env
+export PYTHONPATH="$(realpath ./conda_env/lib/python3.10/site-packages)"
+
+python3.10 ./train_classifier.py --features=./features_split --figures=./figures_split --output=./model_split

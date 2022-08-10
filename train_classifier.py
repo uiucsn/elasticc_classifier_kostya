@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from argparse import ArgumentParser
 from collections import Counter
 from functools import lru_cache
 from glob import glob
@@ -66,9 +67,20 @@ def get_feature_names(path: Union[str, Path]) -> List[str]:
         return fh.read().split()
 
 
+def parse_args():
+    parser = ArgumentParser()
+    parser.add_argument('--features', required=True, help='path with features')
+    parser.add_argument('--figures', required=True, help='output figure path')
+    parser.add_argument('--output', required=True, help='output model path')
+    args = parser.parse_args()
+    return args
+
+
 def main():
-    path = './features'
-    figpath = Path('./figures')
+    args = parse_args()
+
+    path = args.features
+    figpath = Path(args.figures)
     figpath.mkdir(exist_ok=True)
 
     X, y = get_Xy(path)
@@ -95,7 +107,7 @@ def main():
         metric_name="mlogloss",
     )
     classifier = XGBClassifier(
-        n_estimators=2000,
+        n_estimators=10000,
         learning_rate=0.1,
         use_label_encoder=False,
         booster='gbtree',
@@ -114,7 +126,7 @@ def main():
         verbose=True,
     )
     classifier.get_booster().feature_names = feature_names
-    classifier.save_model('model/xgb.ubj')
+    classifier.save_model(f'{args.output}/xgb.ubj')
 
     pprint(sorted(classifier.get_booster().get_fscore().items(), key=lambda x: x[1], reverse=True))
     accuracy = accuracy_score(y_test, classifier.predict(X_test), sample_weight=w_test)
