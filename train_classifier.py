@@ -3,7 +3,6 @@
 from argparse import ArgumentParser
 from collections import Counter
 from functools import lru_cache
-from glob import glob
 from pathlib import Path
 from pprint import pprint
 from typing import Dict, List, Tuple, Union
@@ -29,30 +28,41 @@ def get_weights(types: np.ndarray) -> np.ndarray:
     return np.vectorize(d.get, otypes='g')(types)
 
 
-def get_Xy(path: Union[str, Path]) -> Tuple[np.ndarray, np.ndarray]:
+def get_XyId(path: Union[str, Path]) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     path = Path(path)
 
     feature_suffix = '_features.npy'
     type_suffix = '_types.npy'
+    id_suffix = '_id.npy'
 
-    feature_paths = sorted(glob(str(path.joinpath(f'*{feature_suffix}'))))
-    type_paths = sorted(glob(str(path.joinpath(f'*{type_suffix}'))))
+    feature_paths = sorted(path.glob(f'*{feature_suffix}'))
+    type_paths = sorted(path.glob(f'*{type_suffix}'))
+    id_paths = sorted(path.glob(f'*{id_suffix}'))
 
     assert len(feature_paths) > 0
-    assert len(feature_paths) == len(feature_paths)
+    assert len(feature_paths) == len(feature_paths) == len(id_paths)
 
     features = []
     types = []
-    for feature_path, type_path in zip(feature_paths, type_paths):
-        assert Path(feature_path).name.removesuffix(feature_suffix) == Path(type_path).name.removesuffix(type_suffix)
+    ids = []
+    for feature_path, type_path, id_path in zip(feature_paths, type_paths, id_paths):
+        assert (feature_path.name.removesuffix(feature_suffix)
+                == type_path.name.removesuffix(type_suffix)
+                == id_path.name.removesuffix(id_suffix))
         f = np.load(feature_path)
         features.append(f)
+
         t = np.load(type_path)
         assert f.shape[0] == t.shape[0]
         types.append(t)
+
+        id_ = np.load(id_path)
+        assert f.shape[0] == id_.shape[0]
+        ids.append(id_)
     X = np.concatenate(features)
     y = np.concatenate(types)
-    return X, y
+    ids = np.concatenate(ids)
+    return X, y, ids
 
 
 def fix_features(X: np.ndarray) -> np.ndarray:
@@ -83,20 +93,31 @@ def main():
     figpath = Path(args.figures)
     figpath.mkdir(exist_ok=True)
 
-    X, y = get_Xy(path)
+    X, y, ids = get_XyId(path)
+
     X = fix_features(X)
+
     weights = get_weights(y)
     label_encoder = {label: i for i, label in enumerate(np.unique(y))}
     label_decoder = np.array(list(label_encoder))
     labels, y = y, np.vectorize(label_encoder.get, otypes='i')(y)
+
     feature_names = get_feature_names(path)
     assert X.shape[1] == len(feature_names)
 
-    X_trainval, X_test, y_trainval, y_test, w_trainval, w_test = train_test_split(X, y, weights, test_size=0.2,
-                                                                                  shuffle=True, random_state=0)
-    X_train, X_val, y_train, y_val, w_train, w_val = train_test_split(X_trainval, y_trainval, w_trainval,
-                                                                      test_size=0.25, shuffle=False)
-    assert set(y_train) == set(y_test) == set(y_val)
+    # Split over unique objects to have 0.6/0.2/0.2 train/val/test samples
+    # Is there a way to do it using indexing without np.isin?
+    unique_ids = np.unique(ids)
+    ids_trainval, ids_test = train_test_split(unique_ids, test_size=0.2, shuffle=True, random_state=0)
+    ids_train, ids_val = train_test_split(ids_trainval, test_size=0.25, shuffle=False)
+    mask_train = np.isin(ids, ids_train)
+    mask_val = np.isin(ids, ids_val)
+    mask_test = np.isin(ids, ids_test)
+    X_train, y_train, w_train = X[mask_train], y[mask_train], weights[mask_train]
+    X_val, y_val, w_val = X[mask_val], y[mask_val], weights[mask_val]
+    X_test, y_test, w_test = X[mask_test], y[mask_test], weights[mask_test]
+
+    assert set(y_train) == set(y_test) == set(y_val), 'some types are underrepresented in one of train/val/test sample'
 
     early_stopping = EarlyStopping(
         rounds=10,

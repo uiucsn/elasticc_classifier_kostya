@@ -61,11 +61,6 @@ class NoPreProcessing(PreProcessing):
 
 
 class DropPreTrigger(PreProcessing):
-    def __new__(cls, days_before):
-        if not np.isfinite(days_before):
-            return NoPreProcessing()
-        return super().__new__(cls)
-
     def __init__(self, days_before):
         self.days_before = days_before
 
@@ -198,7 +193,7 @@ def parse_args(argv=None):
     parser.add_argument('-o', '--output', required=True, help='output HDF5 filename')
     parser.add_argument('--split-prob', default=None, type=float, help='get light curve data up to given detection with some probability, if not specified the full dataset is used')
     parser.add_argument('--include-last-detection', action='store_true', help='include last detection light curve for when --split-prob specified')
-    parser.add_argument('--days-before-trigger', defaul=np.inf, type=float, help='range of dates to include non-detections before the first detection, use 30 for Elasticc')
+    parser.add_argument('--days-before-trigger', default=np.inf, type=float, help='range of dates to include non-detections before the first detection, use 30 for Elasticc')
     parser.add_argument('--z-keyword', default='REDSHIFT_HELIO', help='redshift keyword')
     parser.add_argument('--fixed-z', default=None, type=float, help='use the given redshift value')
     parser.add_argument('--z-std', default=None, type=float,
