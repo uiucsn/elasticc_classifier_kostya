@@ -33,7 +33,7 @@ def get_XyId(path: Union[str, Path]) -> Tuple[np.ndarray, np.ndarray, np.ndarray
 
     feature_suffix = '_features.npy'
     type_suffix = '_types.npy'
-    id_suffix = '_id.npy'
+    id_suffix = '_ids.npy'
 
     feature_paths = sorted(path.glob(f'*{feature_suffix}'))
     type_paths = sorted(path.glob(f'*{type_suffix}'))

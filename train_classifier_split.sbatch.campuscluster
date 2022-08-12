@@ -13,7 +13,7 @@
 #SBATCH --time=99:00:00                  # Job run time (hh:mm:ss)
 #SBATCH --nodes=1                        # Number of nodes
 #SBATCH --ntasks-per-node=1              # Number of task (cores/ppn) per node
-#SBATCH --cpus-per-task=80               # Number of cpu cires per task
+#SBATCH --cpus-per-task=40               # Number of cpu cires per task
 #SBATCH --job-name=train_classifier      # Name of batch job
 #SBATCH --partition=caps                 # Partition (queue)           
 #SBATCH --mail-user=kostya@illinois.edu  # Send email notifications
