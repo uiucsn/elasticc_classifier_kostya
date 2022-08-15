@@ -105,6 +105,7 @@ def parse_args():
     parser.add_argument('--features', required=True, help='path with features')
     parser.add_argument('--figures', required=True, help='output figure path')
     parser.add_argument('--output', required=True, help='output model path')
+    parser.add_argument('--xgb-tree-method', default='auto', help='xgboost tree method, e.g. "auto" or "gpu_hist"')
     args = parser.parse_args()
     return args
 
@@ -142,8 +143,6 @@ def main():
 
     assert set(y_train) == set(y_test) == set(y_val), 'some types are underrepresented in one of train/val/test sample'
 
-    model_path = f'{args.output}/xgb.ubj'
-
     early_stopping = EarlyStopping(
         rounds=10,
         min_delta=1e-5,
@@ -154,13 +153,14 @@ def main():
     )
     save_model = SaveModelCallback(
         rounds=10,
-        path=model_path,
+        path=f'{args.output}/xgb_intermediate.ubj',
     )
     classifier = XGBClassifier(
         n_estimators=10000,
         learning_rate=0.1,
         use_label_encoder=False,
         booster='gbtree',
+        tree_method=args.xgb_tree_method,
         seed=0,
         nthread=-1,
         missing=np.nan,
@@ -176,7 +176,7 @@ def main():
         verbose=True,
     )
     classifier.get_booster().feature_names = feature_names
-    classifier.save_model(model_path)
+    classifier.save_model(f'{args.output}/xgb.ubj')
 
     pprint(sorted(classifier.get_booster().get_fscore().items(), key=lambda x: x[1], reverse=True))
     accuracy = accuracy_score(y_test, classifier.predict(X_test), sample_weight=w_test)
