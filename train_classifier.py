@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import logging
 from argparse import ArgumentParser
 from collections import Counter
 from functools import lru_cache
@@ -11,10 +12,28 @@ import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.metrics import accuracy_score, ConfusionMatrixDisplay
 from sklearn.model_selection import train_test_split
-from xgboost import XGBClassifier
-from xgboost.callback import EarlyStopping
+from xgboost import XGBClassifier, Booster
+from xgboost.callback import EarlyStopping, TrainingCallback
 
 from util import SNANA_TO_TAXONOMY
+
+
+class SaveModelCallback(TrainingCallback):
+    def __init__(self, rounds: int, path: Union[Path, str]):
+        super().__init__()
+        self.rounds = rounds
+        self.path = path
+
+    def after_iteration(self, model: Booster, epoch: int, evals_log) -> bool:
+        del evals_log
+        if epoch == 0:
+            return False
+        if epoch % self.rounds != 0:
+            return False
+        model.save_model(self.path)
+        print(f'xgboost model is saved at epoch {epoch} to {self.path}')
+        return False
+
 
 
 @lru_cache(maxsize=1)
@@ -123,6 +142,8 @@ def main():
 
     assert set(y_train) == set(y_test) == set(y_val), 'some types are underrepresented in one of train/val/test sample'
 
+    model_path = f'{args.output}/xgb.ubj'
+
     early_stopping = EarlyStopping(
         rounds=10,
         min_delta=1e-5,
@@ -130,6 +151,10 @@ def main():
         maximize=False,
         data_name="validation_0",
         metric_name="mlogloss",
+    )
+    save_model = SaveModelCallback(
+        rounds=10,
+        path=model_path,
     )
     classifier = XGBClassifier(
         n_estimators=10000,
@@ -147,11 +172,11 @@ def main():
         sample_weight=w_train,
         eval_set=[(X_val, y_val)],
         sample_weight_eval_set=[w_val],
-        callbacks=[early_stopping],
+        callbacks=[early_stopping, save_model],
         verbose=True,
     )
     classifier.get_booster().feature_names = feature_names
-    classifier.save_model(f'{args.output}/xgb.ubj')
+    classifier.save_model(model_path)
 
     pprint(sorted(classifier.get_booster().get_fscore().items(), key=lambda x: x[1], reverse=True))
     accuracy = accuracy_score(y_test, classifier.predict(X_test), sample_weight=w_test)
