@@ -24,8 +24,9 @@
 # Note: SLURM defaults to running jobs in the directory where
 # they are submitted, no need for cd'ing to $SLURM_SUBMIT_DIR
 
-module load python/3
+source $HOME/.bashrc
+module load anaconda/2021-May/3
 conda activate ./conda_env
 export PYTHONPATH="$(realpath ./conda_env/lib/python3.10/site-packages)"
 
-python3.10 ./train_classifier.py
+python3.10 ./train_classifier.py --features=features_split --figures=figures_split --output=model_split
