@@ -13,7 +13,7 @@ SNANA_TO_TAXONOMY = {
     'RRL': 'RR Lyrae',
     'SLSN-I+host': 'SLSN',
     'SLSN-I_no_host': 'SLSN',
-    'SNIa-91bg': 'Ia',
+    'SNIa-91bg': 'Ia-91bg',
     'SNIa-SALT2': 'Ia',
     'SNIax': 'Iax',
     'SNIb+HostXT_V19': 'Ib/c',
