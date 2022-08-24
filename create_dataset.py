@@ -90,22 +90,29 @@ class LastDetectionSplitter(BasicLightCurveSplitter):
 
         
 class RandomDetectionSplitter(BasicLightCurveSplitter):
-    def __init__(self, prob: float, rng=None):
+    def __init__(self, prob: float):
         self.prob = prob
-        self.rng = np.random.default_rng(rng)
+
+    @staticmethod
+    def _rng_from_lc(lc: Table) -> np.random._generator.Generator:
+        first_flux = lc['FLUXCAL'].data[:1]
+        first_flux.dtype = np.uint32
+        random_seed = first_flux.item()
+        return np.random.default_rng(random_seed)
 
     def __call__(self, lc: Table) -> Generator[Table, None, None]:
         det_idx = np.where(get_detection_mask(lc))[0]
         n_det = det_idx.size
-        accepted_mask = self.rng.random(n_det) < self.prob
+        rng = self._rng_from_lc(lc)
+        accepted_mask = rng.random(n_det) < self.prob
         for i_det in det_idx[accepted_mask]:
             yield lc[:i_det + 1]
             
 
 class RandomAndLastDetectionsSplitter(BasicLightCurveSplitter):
-    def __init__(self, prob: float, rng=None):
+    def __init__(self, prob: float):
         self.last_detection_splitter = LastDetectionSplitter()
-        self.random_detection_splitter = RandomDetectionSplitter(prob=prob, rng=rng)
+        self.random_detection_splitter = RandomDetectionSplitter(prob=prob)
 
     def __call__(self, lc: Table) -> Generator[Table, None, None]:
         last_detection_lc = next(self.last_detection_splitter(lc))
@@ -227,7 +234,7 @@ def splitter_from_args(args) -> BasicLightCurveSplitter:
         type_ = RandomAndLastDetectionsSplitter
     else:
         type_ = RandomDetectionSplitter
-    return type_(prob=args.split_prob, rng=0)
+    return type_(prob=args.split_prob)
 
 
 
