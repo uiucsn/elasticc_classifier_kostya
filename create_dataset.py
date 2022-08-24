@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 
-import dataclasses
 import glob
 import os
 from abc import ABC, abstractmethod
-from argparse import ArgumentParser, ArgumentError
-from collections import defaultdict
+from argparse import ArgumentParser
 from functools import partial
 from itertools import chain, starmap
 from multiprocessing import Pool
