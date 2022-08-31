@@ -96,15 +96,15 @@ def fix_features(X: np.ndarray) -> np.ndarray:
 
 def get_feature_names(path: Union[str, Path]) -> List[str]:
     path = Path(path)
-    with open(path.joinpath('names.txt')) as fh:
+    with open(path / 'names.txt') as fh:
         return fh.read().split()
 
 
 def parse_args():
     parser = ArgumentParser()
-    parser.add_argument('--features', required=True, help='path with features')
-    parser.add_argument('--figures', required=True, help='output figure path')
-    parser.add_argument('--output', required=True, help='output model path')
+    parser.add_argument('--features', type=Path, required=True, help='path with features')
+    parser.add_argument('--figures', type=Path, required=True, help='output figure path')
+    parser.add_argument('--output', type=Path, required=True, help='output model path')
     parser.add_argument('--xgb-tree-method', default='auto', help='xgboost tree method, e.g. "auto" or "gpu_hist"')
     args = parser.parse_args()
     return args
@@ -114,7 +114,7 @@ def main():
     args = parse_args()
 
     path = args.features
-    figpath = Path(args.figures)
+    figpath = args.figures
     figpath.mkdir(exist_ok=True)
 
     X, y, ids = get_XyId(path)
@@ -125,6 +125,9 @@ def main():
     label_encoder = {label: i for i, label in enumerate(np.unique(y))}
     label_decoder = np.array(list(label_encoder))
     labels, y = y, np.vectorize(label_encoder.get, otypes='i')(y)
+
+    with open(args.output / 'label_decoder.txt') as fh:
+        fh.write('\n'.join(label_decoder))
 
     feature_names = get_feature_names(path)
     assert X.shape[1] == len(feature_names)
@@ -153,7 +156,7 @@ def main():
     )
     save_model = SaveModelCallback(
         rounds=10,
-        path=f'{args.output}/xgb_intermediate.ubj',
+        path=args.output / 'xgb_intermediate.ubj',
     )
     classifier = XGBClassifier(
         n_estimators=10000,
@@ -176,7 +179,7 @@ def main():
         verbose=True,
     )
     classifier.get_booster().feature_names = feature_names
-    classifier.save_model(f'{args.output}/xgb.ubj')
+    classifier.save_model(args.output / 'xgb.ubj')
 
     pprint(sorted(classifier.get_booster().get_fscore().items(), key=lambda x: x[1], reverse=True))
     accuracy = accuracy_score(y_test, classifier.predict(X_test), sample_weight=w_test)
@@ -190,7 +193,7 @@ def main():
         ax=plt.gca(),
     )
     plt.title(f'Accuracy {accuracy:.3f}')
-    plt.savefig(figpath.joinpath('conf_matrix.pdf'))
+    plt.savefig(figpath / 'conf_matrix.pdf')
     plt.close()
 
 
