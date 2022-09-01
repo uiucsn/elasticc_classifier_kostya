@@ -1,4 +1,4 @@
 outs:
-- md5: 82e36ad5abecef4affb97484f2f800ec
-  size: 336336
+- md5: 98a8fc053403d429811a9005b6f671c4
+  size: 320560
   path: CART_types.npy

@@ -15,7 +15,7 @@ export DATA="data_split/${MODEL_NAME}.hdf5"
 
 set -x
 
-module load opence/1.5.1
-cd ~/elasticc/ && conda activate elasticc
+module load opence/1.6.1
+cd ~/elasticc/ && conda activate elasticc-opence-v1.6.1
 
 python3 ./extract_features.py -i ${DATA} -m model_split/parsnip-elasticc-extragal-SNe.pt -o features_split --device=cuda --s2n=5.0

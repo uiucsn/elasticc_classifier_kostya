@@ -1,4 +1,4 @@
 outs:
-- md5: 49f67e68e047fbe50b57f2e358b652f3
-  size: 23384349
+- md5: c0ea59be2811103a7c1051fd14fddbf8
+  size: 12522330
   path: dwarf-nova.hdf5

@@ -126,7 +126,7 @@ def main():
     label_decoder = np.array(list(label_encoder))
     labels, y = y, np.vectorize(label_encoder.get, otypes='i')(y)
 
-    with open(args.output / 'label_decoder.txt') as fh:
+    with open(args.output / 'label_decoder.txt', 'w') as fh:
         fh.write('\n'.join(label_decoder))
 
     feature_names = get_feature_names(path)

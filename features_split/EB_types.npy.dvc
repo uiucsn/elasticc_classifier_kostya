@@ -1,4 +1,4 @@
 outs:
-- md5: 6a90f9f065fe76b2ed986f962d73754c
-  size: 6237216
+- md5: fa515acc94d390036b23d507fddec7cb
+  size: 6212824
   path: EB_types.npy

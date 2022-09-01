@@ -1,4 +1,4 @@
 outs:
-- md5: 15d2c5bf05b58db81cc3812d9c77453d
-  size: 5034836
+- md5: a1fbe6aa21005d721ef375d5c9fdf410
+  size: 4812488
   path: SNIax_ids.npy

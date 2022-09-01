@@ -1,0 +1,4 @@
+outs:
+- md5: 30b23e698f1bc3953668dc5b68ef9f43
+  size: 117
+  path: label_decoder.txt
