@@ -10,8 +10,12 @@ from typing import Dict, List, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
+import torch.utils.data
+from torch import nn
 from sklearn.metrics import accuracy_score, ConfusionMatrixDisplay
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import QuantileTransformer
 from xgboost import XGBClassifier, Booster
 from xgboost.callback import EarlyStopping, TrainingCallback
 
@@ -33,6 +37,20 @@ class SaveModelCallback(TrainingCallback):
         model.save_model(self.path)
         print(f'xgboost model is saved at epoch {epoch} to {self.path}')
         return False
+
+
+def fix_features_for_xgboost(X: np.ndarray) -> np.ndarray:
+    X[np.isneginf(X)] = np.finfo(X.dtype.type).min
+    X[np.isposinf(X)] = np.finfo(X.dtype.type).max
+    return X
+
+
+def preprocess_for_xgboost(X_train, X_val, X_test):
+    X_train = fix_features_for_xgboost(X_train)
+    X_val = fix_features_for_xgboost(X_val)
+    X_test = fix_features_for_xgboost(X_test)
+
+    return X_train, X_val, X_test
 
 
 def xgboost_classifier(X_train, y_train, w_train, X_val, y_val, w_val, *, feature_names, tree_method, output, **_kwargs):
@@ -76,6 +94,121 @@ def xgboost_classifier(X_train, y_train, w_train, X_val, y_val, w_val, *, featur
     return classifier
 
 
+class MLP(nn.Module):
+    def __init__(self, n_features, n_classes):
+        super().__init__()
+
+        self.nn = nn.Sequential(
+            nn.Linear(n_features, 300),
+            nn.ReLU(),
+            nn.Linear(300, 300),
+            nn.ReLU(),
+            nn.Linear(300, 400),
+            nn.ReLU(),
+            nn.Linear(400, n_classes),
+        )
+
+    def forward(self, X):
+        X = self.nn(X)
+        return nn.functional.log_softmax(X, dim=1)
+
+
+class TorchClassifier:
+    def __init__(self, module, device='cpu'):
+        self.module = module
+        self.device = torch.device(device)
+
+    def predict(self, X):
+        X = torch.tensor(X, device=self.device)
+        y = self.module(X)
+        y = torch.argmax(y, dim=1)
+        return y.detach().numpy()
+
+
+class Normalizer:
+    def __init__(self):
+        self.means = None
+        self.scaler = QuantileTransformer(n_quantiles=1_000, subsample=100_000, output_distribution='normal',
+                                          random_state=0)
+
+    def fit(self, X):
+        soft_max = np.sqrt(np.finfo(X.dtype.type).max)
+        soft_X = np.clip(X, -soft_max, soft_max)
+        self.means = np.nanmean(soft_X, axis=0)
+        self.scaler.fit(X)
+        return self
+
+    def transform(self, X):
+        if self.means is None:
+            raise RuntimeError('Normalizer is not fitted')
+        X = np.where(np.isfinite(X), X, self.means)
+        return self.scaler.transform(X)
+
+
+def preprocess_for_torch(X_train, X_val, X_test):
+    normalizer = Normalizer().fit(X_train)
+    X_train = normalizer.transform(X_train)
+    X_val = normalizer.transform(X_val)
+    X_test = normalizer.transform(X_test)
+
+    return X_train, X_val, X_test
+
+
+def mlp_classifier(X_train, y_train, X_val, y_val, class_weights, *, device, output, **_kwargs):
+    torch.manual_seed(0)
+    torch.use_deterministic_algorithms(True)
+    if device == 'cuda':
+        torch.backends.cudnn.benchmark = False
+
+    device = torch.device(device)
+
+    model = MLP(X_train.shape[1], np.unique(y_train).size)
+    model = model.to(device)
+
+    X_train = torch.tensor(X_train, dtype=torch.float32, device=device)
+    y_train = torch.tensor(y_train, dtype=torch.uint8, device=device)
+    X_val = torch.tensor(X_val, dtype=torch.float32, device=device)
+    y_val = torch.tensor(y_val, dtype=torch.uint8, device=device)
+    class_weights = torch.tensor(class_weights, dtype=torch.float32, device=device)
+
+    train_dataset = torch.utils.data.TensorDataset(X_train, y_train)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1024, shuffle=True)
+
+    loss_fn = nn.NLLLoss(weight=class_weights)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+
+    early_stop_rounds = 10
+    val_loss_history = []
+
+    for epoch in range(10000):
+        for inputs, labels in train_loader:
+            optimizer.zero_grad()
+            outputs = model(inputs)
+            loss = loss_fn(outputs, labels)
+            loss.backward()
+            optimizer.step()
+
+        with torch.no_grad():
+            y_val_pred = model(X_val)
+            loss = loss_fn(y_val_pred, y_val)
+            loss = loss.item()
+            val_loss_history.append(loss)
+        print(f'epoch: {epoch}, loss: {loss:.5f}')
+
+        if len(val_loss_history) > early_stop_rounds and all(np.diff(val_loss_history[-early_stop_rounds:]) > 0):
+            print('Validation loss is not decreasing, stopping training')
+            break
+
+        if epoch % 10 == 0 and epoch != 0:
+            path = output / 'mlp_intermediate.pt'
+            torch.save(model.state_dict(), path)
+            print(f'PyTorch MLP model is saved at epoch {epoch} tp {path}')
+
+    torch.save(model.state_dict(), output / 'mlp.pt')
+
+    return TorchClassifier(model)
+
+
 @lru_cache(maxsize=1)
 def type_weights() -> Dict[str, float]:
     type_counts = Counter(SNANA_TO_TAXONOMY.values())
@@ -84,7 +217,7 @@ def type_weights() -> Dict[str, float]:
 
 def get_weights(types: np.ndarray) -> np.ndarray:
     d = type_weights()
-    return np.vectorize(d.get, otypes='g')(types)
+    return np.vectorize(d.get, otypes=[np.float32])(types)
 
 
 def get_XyId(path: Union[str, Path]) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -128,12 +261,6 @@ def get_XyId(path: Union[str, Path]) -> Tuple[np.ndarray, np.ndarray, np.ndarray
     return X, y, ids
 
 
-def fix_features(X: np.ndarray) -> np.ndarray:
-    X[np.isneginf(X)] = np.finfo(X.dtype.type).min
-    X[np.isposinf(X)] = np.finfo(X.dtype.type).max
-    return X
-
-
 def get_feature_names(path: Union[str, Path]) -> List[str]:
     path = Path(path)
     with open(path / 'names.txt') as fh:
@@ -152,6 +279,9 @@ def parse_args():
     xgboost_parser = algo_subparsers.add_parser('xgboost')
     xgboost_parser.add_argument('--tree-method', default='auto', help='xgboost tree method, e.g. "auto" or "gpu_hist"')
 
+    mlp_parser = algo_subparsers.add_parser('mlp')
+    mlp_parser.add_argument('--device', default='cpu', help='device to use, e.g. "cuda" or "cpu" or "mps"')
+
     args = main_parser.parse_args()
     return args
 
@@ -165,12 +295,11 @@ def main():
 
     X, y, ids = get_XyId(path)
 
-    X = fix_features(X)
-
     weights = get_weights(y)
     label_encoder = {label: i for i, label in enumerate(np.unique(y))}
     label_decoder = np.array(list(label_encoder))
-    labels, y = y, np.vectorize(label_encoder.get, otypes='i')(y)
+    class_weights = get_weights(np.array(list(label_encoder)))
+    labels, y = y, np.vectorize(label_encoder.get, otypes=[np.uint8])(y)
 
     with open(args.output / 'label_decoder.txt', 'w') as fh:
         fh.write('\n'.join(label_decoder))
@@ -193,8 +322,12 @@ def main():
     assert set(y_train) == set(y_test) == set(y_val), 'some types are underrepresented in one of train/val/test sample'
 
     if args.algo == 'xgboost':
+        X_train, X_val, X_test = preprocess_for_xgboost(X_train, X_val, X_test)
         classifier = xgboost_classifier(X_train, y_train, w_train, X_val, y_val, w_val, feature_names=feature_names,
                                         **vars(args))
+    elif args.algo == 'mlp':
+        X_train, X_val, X_test = preprocess_for_torch(X_train, X_val, X_test)
+        classifier = mlp_classifier(X_train, y_train, X_val, y_val, class_weights=class_weights, **vars(args))
     else:
         raise ValueError(f'Unknown algorithm: {args.algo}')
 
