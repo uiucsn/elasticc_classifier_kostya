@@ -35,6 +35,46 @@ class SaveModelCallback(TrainingCallback):
         return False
 
 
+def xgboost_classifier(X_train, y_train, w_train, X_val, y_val, w_val, *, feature_names, tree_method, output, **_kwargs):
+    early_stopping = EarlyStopping(
+        rounds=10,
+        min_delta=1e-5,
+        save_best=True,
+        maximize=False,
+        data_name="validation_0",
+        metric_name="mlogloss",
+    )
+    save_model = SaveModelCallback(
+        rounds=10,
+        path=output / 'xgb_intermediate.ubj',
+    )
+    classifier = XGBClassifier(
+        n_estimators=10000,
+        learning_rate=0.1,
+        use_label_encoder=False,
+        booster='gbtree',
+        tree_method=tree_method,
+        seed=0,
+        nthread=-1,
+        missing=np.nan,
+        # max_depth=max(6, int(np.log2(len(feature_names)) + 1)),  # 6 is default
+    )
+    classifier.fit(
+        X_train,
+        y_train,
+        sample_weight=w_train,
+        eval_set=[(X_val, y_val)],
+        sample_weight_eval_set=[w_val],
+        callbacks=[early_stopping, save_model],
+        verbose=True,
+    )
+    classifier.get_booster().feature_names = feature_names
+    classifier.save_model(output / 'xgb.ubj')
+
+    pprint(sorted(classifier.get_booster().get_fscore().items(), key=lambda x: x[1], reverse=True))
+
+    return classifier
+
 
 @lru_cache(maxsize=1)
 def type_weights() -> Dict[str, float]:
@@ -152,42 +192,12 @@ def main():
 
     assert set(y_train) == set(y_test) == set(y_val), 'some types are underrepresented in one of train/val/test sample'
 
-    early_stopping = EarlyStopping(
-        rounds=10,
-        min_delta=1e-5,
-        save_best=True,
-        maximize=False,
-        data_name="validation_0",
-        metric_name="mlogloss",
-    )
-    save_model = SaveModelCallback(
-        rounds=10,
-        path=args.output / 'xgb_intermediate.ubj',
-    )
-    classifier = XGBClassifier(
-        n_estimators=10000,
-        learning_rate=0.1,
-        use_label_encoder=False,
-        booster='gbtree',
-        tree_method=args.tree_method,
-        seed=0,
-        nthread=-1,
-        missing=np.nan,
-        # max_depth=max(6, int(np.log2(len(feature_names)) + 1)),  # 6 is default
-    )
-    classifier.fit(
-        X_train,
-        y_train,
-        sample_weight=w_train,
-        eval_set=[(X_val, y_val)],
-        sample_weight_eval_set=[w_val],
-        callbacks=[early_stopping, save_model],
-        verbose=True,
-    )
-    classifier.get_booster().feature_names = feature_names
-    classifier.save_model(args.output / 'xgb.ubj')
+    if args.algo == 'xgboost':
+        classifier = xgboost_classifier(X_train, y_train, w_train, X_val, y_val, w_val, feature_names=feature_names,
+                                        **vars(args))
+    else:
+        raise ValueError(f'Unknown algorithm: {args.algo}')
 
-    pprint(sorted(classifier.get_booster().get_fscore().items(), key=lambda x: x[1], reverse=True))
     accuracy = accuracy_score(y_test, classifier.predict(X_test), sample_weight=w_test)
     print('Accuracy', accuracy)
 
