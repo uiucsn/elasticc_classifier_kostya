@@ -10,4 +10,4 @@ cd ~/elasticc/ && conda activate elasticc-opence-v1.6.1
 
 nvidia-smi
 
-python3 ./train_classifier.py --features=features_split/ --figures=figures_split/ --output=model_split/ --xgb-tree-method=gpu_hist
+python3 ./train_classifier.py --features=features_split/ --figures=figures_split/ --output=model_split/ xgboost --tree-method=gpu_hist

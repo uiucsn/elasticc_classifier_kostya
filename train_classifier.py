@@ -101,12 +101,18 @@ def get_feature_names(path: Union[str, Path]) -> List[str]:
 
 
 def parse_args():
-    parser = ArgumentParser()
-    parser.add_argument('--features', type=Path, required=True, help='path with features')
-    parser.add_argument('--figures', type=Path, required=True, help='output figure path')
-    parser.add_argument('--output', type=Path, required=True, help='output model path')
-    parser.add_argument('--xgb-tree-method', default='auto', help='xgboost tree method, e.g. "auto" or "gpu_hist"')
-    args = parser.parse_args()
+    main_parser = ArgumentParser()
+
+    main_parser.add_argument('--features', type=Path, required=True, help='path with features')
+    main_parser.add_argument('--figures', type=Path, required=True, help='output figure path')
+    main_parser.add_argument('--output', type=Path, required=True, help='output model path')
+
+    algo_subparsers = main_parser.add_subparsers(title='algo', dest='algo', required=True, help='algorithm to use')
+
+    xgboost_parser = algo_subparsers.add_parser('xgboost')
+    xgboost_parser.add_argument('--tree-method', default='auto', help='xgboost tree method, e.g. "auto" or "gpu_hist"')
+
+    args = main_parser.parse_args()
     return args
 
 
@@ -163,7 +169,7 @@ def main():
         learning_rate=0.1,
         use_label_encoder=False,
         booster='gbtree',
-        tree_method=args.xgb_tree_method,
+        tree_method=args.tree_method,
         seed=0,
         nthread=-1,
         missing=np.nan,
